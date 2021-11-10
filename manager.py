@@ -57,10 +57,8 @@ class NextRequest:
     
     def in_use(self):
         metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
-        print(metadata)
         if 'last_accessed' in metadata:
             duration = abs(time.time() - float(metadata['last_accessed']))
-            print(duration/60,duration)
             return duration/60 < 5
         return False    
         
@@ -107,13 +105,14 @@ def crawl_subdomain(url):
     nr = NextRequest(url)
     if nr.is_completed():
         return False
-    if nr.in_use():
+    if not nr.in_use():
         logging.warning(f'Domain in use by other server {url}')
         time.sleep(1)
         return False
     logging.info(f'Cralwing {url}')
     nr.start()
     nr.mark_completed()
+    return True
     
 def multi_processing():
     processes = []
