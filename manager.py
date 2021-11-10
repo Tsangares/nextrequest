@@ -36,7 +36,11 @@ class NextRequest:
             logging.error(f"Limit reached {response}")
             return None
         logging.info(f'{response}: {url}')
-        return response.json()
+        try:
+            return response.json()
+        except Exception as e:
+            logging.error(e)
+            return None
 
     def write_requests(self,requests):
         mongo.nextrequest.requests.insert_many(requests)
