@@ -4,6 +4,7 @@ from multiprocessing import Pool,Process
 
 cred = json.load(open('credentials.json'))
 db_url = f"{cred['schema']}{cred['username']}:{cred['password']}@{cred['host']}:{cred['port']}/{cred['db']}?authSource={cred['auth']}"
+print(db_url)
 mongo = pymongo.MongoClient(db_url)
 
 class NextRequest:
@@ -24,7 +25,7 @@ class NextRequest:
         response = requests.get(url,json=params)
         while response.status_code == 429:
             response = requests.get(url)
-            delay = self.delay + random.random()*60
+            delay = self.delay + random.random()*10
             logging.info(f"Response 429: too many requests. Waiting {delay:.02f} seconds. {self.subdomain}")
             time.sleep(delay)
         if response.status_code == 500:
@@ -45,7 +46,7 @@ class NextRequest:
         self.total_requests = response["total_count"]
         request_ids = [query['id'] for query in response['requests']]
         requests = None
-        with Pool(100) as pool:
+        with Pool(30) as pool:
             requests = pool.map(self.get_request,request_ids)
         output = []
         for metadata,request in zip(response['requests'],requests):
@@ -76,6 +77,7 @@ def crawl_subdomain(url):
     nr.start()
 def multi_processing():
     processes = []
+    logging.info("Initialized deterministic multi processing")    
     for subdomain in mongo.nextrequest.subdomains.find({}):
         url = subdomain['subdomain']        
         p = Process(target=crawl_subdomain,args=(url,))
@@ -86,9 +88,13 @@ def multi_processing():
         p.join()
     print('done')
 def single_processing():
+    logging.info("Initialized deterministic single processing")
     for subdomain in mongo.nextrequest.subdomains.find({}):
+        logging.info(f'Cralwing {subdomain}')
         url = subdomain['subdomain']
         crawl_subdomain(url)
     print('done')
+    
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
+    single_processing()
