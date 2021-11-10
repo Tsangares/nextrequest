@@ -105,7 +105,7 @@ def crawl_subdomain(url):
     nr = NextRequest(url)
     if nr.is_completed():
         return False
-    if not nr.in_use():
+    if nr.in_use():
         logging.warning(f'Domain in use by other server {url}')
         time.sleep(1)
         return False
