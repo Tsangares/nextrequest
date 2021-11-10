@@ -44,10 +44,10 @@ class NextRequest:
             count = metadata['count']
         count += len(requests)
         
-        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'count': count, 'last_accessed': time.time(), 'completed': False}})
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'count': count, 'last_accessed': time.time(), 'completed': False, 'total_count': self.total_documents}})
 
     def mark_completed(self):
-        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True}})
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True, 'total_count': self.total_documents}})
         
     def is_completed(self):
         metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
@@ -57,8 +57,10 @@ class NextRequest:
     
     def in_use(self):
         metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
-        if 'time' in metadata:
-            duration = time.time() - metadata['last_accessed']
+        print(metadata)
+        if 'last_accessed' in metadata:
+            duration = abs(time.time() - float(metadata['last_accessed']))
+            print(duration/60,duration)
             return duration/60 > 5
         return False    
         
@@ -104,11 +106,11 @@ class NextRequest:
 def crawl_subdomain(url):
     nr = NextRequest(url)
     if nr.is_completed():
-        return
+        return False
     if nr.in_use():
         logging.warning(f'Domain in use by other server {url}')
         time.sleep(1)
-        return 
+        return False
     logging.info(f'Cralwing {url}')
     nr.start()
     nr.mark_completed()
