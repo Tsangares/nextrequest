@@ -4,7 +4,6 @@ from multiprocessing import Pool,Process
 
 cred = json.load(open('credentials.json'))
 db_url = f"{cred['schema']}{cred['username']}:{cred['password']}@{cred['host']}:{cred['port']}/{cred['db']}?authSource={cred['auth']}"
-print(db_url)
 mongo = pymongo.MongoClient(db_url)
 
 class NextRequest:
@@ -83,6 +82,8 @@ class NextRequest:
             "sort_order": sort_order
         }
         response = self.get(self.requests_endpoint,params=params)
+        if response is None:
+            self.update_total_count(-1)
         self.total_requests = response["total_count"]
         self.update_total_count(self.total_requests)
         request_ids = [query['id'] for query in response['requests']]
