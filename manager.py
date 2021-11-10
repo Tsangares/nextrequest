@@ -61,7 +61,7 @@ class NextRequest:
         if 'last_accessed' in metadata:
             duration = abs(time.time() - float(metadata['last_accessed']))
             print(duration/60,duration)
-            return duration/60 > 5
+            return duration/60 < 5
         return False    
         
     #sort_order could be "asc"
