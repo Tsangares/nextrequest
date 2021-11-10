@@ -56,7 +56,9 @@ class NextRequest:
         metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
         if 'total_count' not in metadata or 'count' not in metadata:
             return False
-        if metadata['total_count'] >= metadata['count']:
+        elif metadata['total_count'] is None:
+            return False
+        elif metadata['total_count'] >= metadata['count']:            
             mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True, 'total_count': self.total_requests}})
         
         
@@ -84,6 +86,7 @@ class NextRequest:
         response = self.get(self.requests_endpoint,params=params)
         if response is None:
             self.update_total_count(-1)
+            return False
         self.total_requests = response["total_count"]
         self.update_total_count(self.total_requests)
         request_ids = [query['id'] for query in response['requests']]
