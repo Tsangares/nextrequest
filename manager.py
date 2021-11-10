@@ -19,7 +19,10 @@ class NextRequest:
 
     def start(self):
         self.get_requests()
-        
+
+    def update_total_count(self,total_count):
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'total_count': self.total_documents}})
+
     #Retry upon 429 Too Many Reqests
     def get(self,url,params=None):
         #logging.info(f"Getting {url} with {params}")
@@ -44,10 +47,10 @@ class NextRequest:
             count = metadata['count']
         count += len(requests)
         
-        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'count': count, 'last_accessed': time.time(), 'completed': False, 'total_count': self.total_documents}})
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'count': count, 'last_accessed': time.time(), 'completed': False, 'total_count': self.total_requests}})
 
     def mark_completed(self):
-        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True, 'total_count': self.total_documents}})
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True, 'total_count': self.total_requests}})
         
     def is_completed(self):
         metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
@@ -72,6 +75,7 @@ class NextRequest:
         }
         response = self.get(self.requests_endpoint,params=params)
         self.total_requests = response["total_count"]
+        self.update_total_count(self.total_requests)
         request_ids = [query['id'] for query in response['requests']]
         requests = None
         with Pool(30) as pool:
