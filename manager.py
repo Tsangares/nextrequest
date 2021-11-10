@@ -19,6 +19,7 @@ class NextRequest:
 
     def start(self):
         self.get_requests()
+        
     #Retry upon 429 Too Many Reqests
     def get(self,url,params=None):
         #logging.info(f"Getting {url} with {params}")
@@ -34,6 +35,33 @@ class NextRequest:
         logging.info(f'{response}: {url}')
         return response.json()
 
+    def write_requests(self,requests):
+        mongo.nextrequest.requests.insert_many(requests)
+        metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
+        if 'count' not in metadata:
+            count = 0
+        else:
+            count = metadata['count']
+        count += len(requests)
+        
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'count': count, 'last_accessed': time.time(), 'completed': False}})
+
+    def mark_completed(self):
+        mongo.nextrequest.subdomains.update_one({'subdomain': self.subdomain},{'$set': {'last_accessed': time.time(), 'completed': True}})
+        
+    def is_completed(self):
+        metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
+        if 'completed' in metadata:
+            return metadata['completed']
+        return False
+    
+    def in_use(self):
+        metadata = mongo.nextrequest.subdomains.find_one({'subdomain': self.subdomain})
+        if 'time' in metadata:
+            duration = time.time() - metadata['last_accessed']
+            return duration/60 > 5
+        return False    
+        
     #sort_order could be "asc"
     def get_requests(self,page=1,sort_order="desc"):
         params = {
@@ -54,11 +82,12 @@ class NextRequest:
                 output.append(request | metadata | {'domain': self.subdomain})
         logging.warning(f"Uploading to db {len(output)}.")
         if len(output) == 0: return
-        mongo.nextrequest.requests.insert_many(output)
+        
+        self.write_requests(output)
         
         logging.warning(f"Going to page {page}")
         self.get_requests(page+1,sort_order)
-            
+    
             
     def get_request(self,request_id):
         db = pymongo.MongoClient(db_url)
@@ -74,7 +103,16 @@ class NextRequest:
 
 def crawl_subdomain(url):
     nr = NextRequest(url)
+    if nr.is_completed():
+        return
+    if nr.in_use():
+        logging.warning(f'Domain in use by other server {url}')
+        time.sleep(1)
+        return 
+    logging.info(f'Cralwing {url}')
     nr.start()
+    nr.mark_completed()
+    
 def multi_processing():
     processes = []
     logging.info("Initialized deterministic multi processing")    
@@ -90,11 +128,17 @@ def multi_processing():
 def single_processing():
     logging.info("Initialized deterministic single processing")
     for subdomain in mongo.nextrequest.subdomains.find({}):
-        logging.info(f'Cralwing {subdomain}')
         url = subdomain['subdomain']
         crawl_subdomain(url)
     print('done')
-    
+
+def reset():
+    for subdomain in mongo.nextrequest.subdomains.find({}):
+        sub =  subdomain['subdomain']
+        new = {
+            'subdomain': sub
+        }
+        mongo.nextrequest.subdomains.replace_one({'subdomain': sub},new)
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
     single_processing()
